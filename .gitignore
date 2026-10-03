@@ -1,0 +1,23 @@
+# 运行时数据（含凭据，绝不入库）
+data/
+
+# 本地配置（含内网 IP，用户私有）
+local/sync.conf
+
+# sync_credentials.py --extract-only 导出文件（含凭据，绝不入库）
+extracted_accounts.yaml
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# Python 轮转日志旧档
+*.log.*
+
+# 编辑器临时文件
+*~
+*.swp
+*.swo
+.vscode/
+.idea/

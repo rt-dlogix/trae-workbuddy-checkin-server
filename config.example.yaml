@@ -1,0 +1,29 @@
+# 此文件仅为初始参考模板。服务首次启动后 data/config.yaml 由电脑端 sync_credentials.py
+# 通过 /api/accounts/* 上传自动生成，无需手动编辑。
+#
+# data/config.yaml 结构（由电脑端上传自动生成）：
+#
+# schedule: "06:00"           # 签到时间（手机端实际由 cron 触发，此字段仅展示用）
+# timezone: "Asia/Shanghai"   # 时区
+# run_on_start: false         # 手机端 cron 接管，此字段保留兼容
+#
+# accounts:
+#   # TRAE 客户端模式（电脑端 tools/sync_credentials.py 导出并上传）
+#   - name: trae-1
+#     platform: trae
+#     auth_type: client
+#     token: "..."
+#     refresh_token: "..."
+#     expires_at: "2026-10-01T08:00:00Z"
+#     user_id: "12345678"
+#     device_id: "..."
+#     machine_id: "..."
+#     req_source: 1
+#
+#   # WorkBuddy（电脑端 tools/sync_credentials.py 导出并上传）
+#   - name: workbuddy-1
+#     platform: workbuddy
+#     token: "accessToken"
+#     uid: "用户 uid"
+#     domain: ""
+#     expires_at: 1758000000000
