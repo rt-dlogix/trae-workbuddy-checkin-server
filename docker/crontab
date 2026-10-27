@@ -1,0 +1,6 @@
+# 签到 06:00/12:00/20:00（Asia/Shanghai）
+# 一日三次互为兜底：06:00 主签，12:00/20:00 补漏；签到幂等，不重复累加
+0 6,12,20 * * * cd /app && /usr/local/bin/python -m checkin --once --data-dir /app/data >> /app/data/cron.log 2>&1
+
+# WorkBuddy 派猫猫旅行状态机 06:00/12:00/20:00
+0 6,12,20 * * * cd /app && /usr/local/bin/python -m checkin --travel --data-dir /app/data >> /app/data/cron-travel.log 2>&1

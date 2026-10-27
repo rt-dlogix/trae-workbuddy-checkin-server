@@ -7,6 +7,10 @@ local/sync.conf
 # sync_credentials.py --extract-only 导出文件（含凭据，绝不入库）
 extracted_accounts.yaml
 
+# 环境变量文件（含 WEB_PASSWORD 等密钥，绝不入库）
+.env
+.env.*
+
 # Python 缓存
 __pycache__/
 *.pyc

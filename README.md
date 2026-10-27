@@ -4,7 +4,7 @@
 
 把闲置旧手机改造成一台**家庭小服务器** ( 手机端改造 -- HONOR7-HomeServer.md )，跑 TRAE / WorkBuddy 自动签到。
 
-服务端也兼容任意 Linux / macOS，不局限于手机。 
+服务端也兼容任意 Linux / macOS / Docker，不局限于手机。 
 
 旧手机不用装 Docker，不用刷系统，装个 Termux 即可。插上电源常年待机，白天不用时顺手当个常开的服务节点。
 
@@ -59,7 +59,7 @@
 
 ## 特性
 
-- **零 Docker**：直接在 Termux 跑 Python
+- **部署双形态**：Termux 直跑（旧手机，免 Docker）或 Docker（Linux/NAS，`docker compose` 一行起），同一套服务端代码
 - **零 FastAPI/uvicorn**：用 `http.server.ThreadingHTTPServer`（标准库）
 - **零 curl_cffi**：仅 TRAE 客户端模式 + WorkBuddy，不依赖浏览器指纹
 - **电脑端零改动**：`sync_credentials.py` / `sync-to-nas.bat` 独立于服务端版本，仅 `sync.conf` 改 `NAS_IP`
@@ -77,7 +77,18 @@
 
 砍掉的依赖：`curl_cffi`、`fastapi`、`uvicorn`。
 
-## 部署步骤
+## 部署方式
+
+本项目支持两种部署，二选一：
+
+| 方式 | 适用 | 入口 |
+| --- | --- | --- |
+| **Termux 直跑** | 闲置旧安卓手机（Android 6.0+），不想常开一台主机 | 下文「部署步骤（Termux 直跑）」 |
+| **Docker** | Linux 服务器 / NAS / 任意装了 Docker 的机器 | 「Docker 部署」节 |
+
+两种方式共用同一套服务端代码与 HTTP 简报台，电脑端 `sync-to-nas.bat` 上传凭据时只需把 `NAS_IP` 指向部署机。
+
+## 部署步骤（Termux 直跑）
 
 ### 1. 项目部署
 
@@ -164,6 +175,52 @@ WEB_PORT=8080
 ### 7. 查看简报
 
 电脑浏览器访问 `http://手机IP:8080/report`，显示账户状态、今日结果、最近 7 天历史、手动签到按钮。
+
+## Docker 部署
+
+适用于有一台 Linux 服务器 / NAS / 任意装了 Docker 的机器，不想用旧手机。镜像只含服务端，电脑端 `local/sync-to-nas.bat` 仍是 Windows 工具，不入镜像。
+
+### 文件清单
+
+| 文件 | 作用 |
+| --- | --- |
+| `Dockerfile` | `python:3.12-slim` + tzdata/cron + 依赖 + checkin 代码 |
+| `docker-compose.yml` | 端口 8080、`./data` 卷、TZ/WEB_PASSWORD 环境变量 |
+| `docker/crontab` | 签到 + 旅行，各 06:00/12:00/20:00（Asia/Shanghai） |
+| `docker/entrypoint.sh` | 加载 crontab → 后台 crond → 前台 HTTP 服务 |
+| `.dockerignore` | 只让 `checkin/` `requirements.txt` `docker/` 进构建上下文 |
+
+### 步骤
+
+```bash
+# 1. 构建并启动（首次会拉 python:3.12-slim）
+docker compose up -d --build
+
+# 2. 查看日志（HTTP 服务日志走 docker logs，不落盘）
+docker compose logs -f
+
+# 3. 电脑端 sync-to-nas.bat 照常上传凭据（NAS_IP 指向部署机，端口 8080）
+
+# 4. 手动触发一次签到验证
+docker compose exec checkin python -m checkin --once --data-dir /app/data
+
+# 5. 查看 cron 调度
+docker compose exec checkin crontab -l
+# 等到 06:00/12:00/20:00 后看结果
+docker compose exec checkin cat /app/data/cron.log
+```
+
+### 设密码
+
+取消 `docker-compose.yml` 里 `WEB_PASSWORD` 注释后 `docker compose up -d`，简报台/账户页需登录；不设则无鉴权（仅内网使用）。
+
+### 与 Termux 方式的差异
+
+- **无 termux-wake-lock**：容器不会休眠，不需要
+- **无单次 60s 重试**：容器环境稳定，靠一日三次幂等兜底（06:00 主签，12:00/20:00 补漏）
+- **无周日 cleanup 任务**：`logger.py` 已有 30 天轮转兜底 `checkin.log`；HTTP 日志走 `docker logs` 不落盘；`cron.log` 增长极慢
+- **断电自愈**：`restart: unless-stopped`，Docker 守护进程拉起后容器自动恢复，对应 Termux 的 MacroDroid + bashrc 自启
+- **数据持久化**：`./data` 卷挂载，删容器不丢凭据/历史
 
 ## 保活与自启
 
@@ -258,7 +315,13 @@ trae-workbuddy-checkin-server/
 ├── data/                  # 运行时生成（含凭据，不入库）
 ├── config.example.yaml    # 配置模板说明（真实 config.yaml 在 data/，自动生成）
 ├── requirements.txt
-├── install.sh             # 一键安装
+├── Dockerfile             # Docker 镜像（服务端）
+├── docker-compose.yml     # Docker Compose 编排
+├── docker/                # Docker 专用：cron 表 + entrypoint
+│   ├── crontab
+│   └── entrypoint.sh
+├── .dockerignore
+├── install.sh             # 一键安装（Termux）
 ├── check.sh               # 自检（install.sh 末尾自动调用）
 ├── server.sh              # 启动 HTTP 服务
 ├── stop.sh                # 停止服务
@@ -269,16 +332,21 @@ trae-workbuddy-checkin-server/
 
 > `local/` 内的脚本跑在电脑 Windows 上，采集本机 Trae / WorkBuddy 客户端登录态后 HTTP 上传到服务端。手机端部署时**不需要**这层，`sync-to-nas.bat` 双击即完成凭据导入。
 
-## 与 Docker 部署方案的对比
+## Termux 直跑 vs Docker
 
-| 项 | 容器化方案 | 本项目（Termux 直跑） |
+两种部署方式对比（同一套服务端代码）：
+
+| 项 | Termux 直跑 | Docker |
 | --- | --- | --- |
-| 部署 | Docker 容器 | Termux 直跑 |
-| Web 框架 | FastAPI + uvicorn | http.server（标准库） |
-| Web 控制台 | 完整 static/ HTML | `/report` 简报台 |
-| 调度 | 进程内后台线程 | cron 触发 `--once` / `--travel` |
-| 依赖数 | 7 | 4（含 tzdata） |
-| 常驻目标 | 需一台主机长期运行 | 闲置旧手机插电即可 |
+| 部署目标 | 闲置旧安卓手机（Android 6.0+） | Linux 服务器 / NAS / 任意 Docker 主机 |
+| 安装 | `bash install.sh`（pkg + pip + crontab + bashrc） | `docker compose up -d --build` |
+| 调度 | Termux 内置 crond + `cron-*.sh` | 容器内 crond + `docker/crontab` |
+| 防休眠 | `termux-wake-lock` + MacroDroid | 不需要（容器不休眠） |
+| 自启 | MacroDroid 开机拉 Termux + bashrc 自启段 | `restart: unless-stopped` |
+| 日志 | `data/server.log` + cron 日志落盘 | `docker logs`（HTTP）+ `data/cron*.log` |
+| 清理 | 周日 03:00 `cron-cleanup.sh` | `logger.py` 30 天轮转兜底，无需额外清理 |
+| 重试 | 失败 60s 后重试一次 | 靠一日三次幂等兜底 |
+| 常驻成本 | 旧手机插电，零额外功耗 | 需一台常开主机/NAS |
 
 ## 故障排查
 

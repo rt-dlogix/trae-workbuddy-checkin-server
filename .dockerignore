@@ -1,0 +1,16 @@
+# 构建上下文排除：只让 checkin/ 和 requirements.txt 进镜像
+data/
+local/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.log.*
+*.md
+*.sh
+.claude/
+.vscode/
+.idea/
+Dockerfile
+docker-compose.yml
